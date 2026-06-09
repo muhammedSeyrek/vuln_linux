@@ -46,6 +46,9 @@ Vagrant.configure("2") do |config|
       v.vmx["displayname"] = "Vuln4_Systemd"
       v.vmx["memsize"] = "1024"
     end
+    # Yeni değişiklik, otomatize etmek için.
+    sys.vm.provision "shell", path: "deploy_ld_preload_vuln.sh"
+    sys.vm.provision "shell", path: "deploy_systemd_vuln.sh"
   end
 
   # ==========================================
