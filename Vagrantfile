@@ -37,6 +37,8 @@ Vagrant.configure("2") do |config|
       v.vmx["displayname"] = "Vuln3_PAM"
       v.vmx["memsize"] = "1024"
     end
+    # Otomasyon için betik çalıştırma talimatı eklendi
+    pam.vm.provision "shell", path: "deploy_pam_vuln.sh"
   end
 
   # 4. Ahmet Faruk: Systemd & LD_PRELOAD
