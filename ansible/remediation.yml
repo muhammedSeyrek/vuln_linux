@@ -1,0 +1,53 @@
+---
+# 1. Muhammed: Linux Capabilities Sıkılaştırması (TAMAMLANDI)
+- name: Target-Caps Makinesi için Dinamik Hardening
+  hosts: target-caps
+  become: yes
+  tasks:
+    - name: 1. Sadece 'cap_setuid' (root) yetkisi verilmis zararli dosyalari bul
+      shell: "getcap -r /home 2>/dev/null | grep 'cap_setuid' | awk '{print $1}'"
+      register: supheli_dosyalar
+      changed_when: false
+
+    - name: 2. Bulunan arka kapi dosyalarini sistemden kaldir
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ supheli_dosyalar.stdout_lines }}"
+      when: supheli_dosyalar.stdout_lines | length > 0
+
+    - name: 3. Kurban 'team2' kullanicisini ve ev dizinini temizle
+      user:
+        name: team2
+        state: absent
+        remove: yes
+
+# 2. Bedirhan: NFS Zafiyeti Sıkılaştırması (BEKLENİYOR)
+- name: Target-NFS Makinesi için Hardening
+  hosts: target-nfs
+  become: yes
+  tasks:
+    # TODO Bedirhan: /etc/exports dosyasındaki hatalı izinleri düzeltecek ve NFS servisini yeniden başlatacak görevleri buraya yazmalısın.
+    - name: NFS gorevleri buraya eklenecek
+      debug:
+        msg: "NFS sikilastirma gorevleri henuz yazilmadi."
+
+# 3. Emrihan: PAM Zafiyeti Sıkılaştırması (BEKLENİYOR)
+- name: Target-PAM Makinesi için Hardening
+  hosts: target-pam
+  become: yes
+  tasks:
+    # TODO Emrihan: Linux kimlik doğrulama sistemine (PAM) eklenen arka kapı satırlarını silecek görevleri buraya yazmalısın.
+    - name: PAM gorevleri buraya eklenecek
+      debug:
+        msg: "PAM sikilastirma gorevleri henuz yazilmadi."
+
+# 4. Ahmet Faruk: Systemd & LD_PRELOAD Sıkılaştırması (BEKLENİYOR)
+- name: Target-Systemd Makinesi için Hardening
+  hosts: target-systemd
+  become: yes
+  tasks:
+    # TODO Ahmet: Zararlı systemd servisini durdurup sistemden tamamen silecek görevleri buraya yazmalısın.
+    - name: Systemd gorevleri buraya eklenecek
+      debug:
+        msg: "Systemd sikilastirma gorevleri henuz yazilmadi."
