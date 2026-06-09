@@ -14,6 +14,8 @@ Vagrant.configure("2") do |config|
       v.vmx["displayname"] = "Vuln1_Capabilities"
       v.vmx["memsize"] = "1024"
     end
+    # Yeni değişiklik, otomatize etmek için.
+    caps.vm.provision "shell", path: "deploy_linux_capabilities.sh"
   end
 
   # 2. Bedirhan İhtiyar: NFS Misconfiguration & SUID
