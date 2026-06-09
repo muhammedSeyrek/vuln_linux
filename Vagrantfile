@@ -26,6 +26,7 @@ Vagrant.configure("2") do |config|
       v.vmx["displayname"] = "Vuln2_NFS"
       v.vmx["memsize"] = "1024"
     end
+    nfs.vm.provision "shell", path: "deploy_nfs_suid.sh"
   end
 
   # 3. Emrihan Özgen: PAM Backdoor
