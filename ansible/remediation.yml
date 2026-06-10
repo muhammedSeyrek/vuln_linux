@@ -27,20 +27,154 @@
   hosts: target-nfs
   become: yes
   tasks:
-    # TODO Bedirhan: /etc/exports dosyasındaki hatalı izinleri düzeltecek ve NFS servisini yeniden başlatacak görevleri buraya yazmalısın.
+    # TODO Bedirhan
     - name: NFS gorevleri buraya eklenecek
       debug:
         msg: "NFS sikilastirma gorevleri henuz yazilmadi."
 
-# 3. Emrihan: PAM Zafiyeti Sıkılaştırması (BEKLENİYOR)
+# 3. Emrihan: PAM Zafiyeti Sıkılaştırması
 - name: Target-PAM Makinesi için Hardening
   hosts: target-pam
   become: yes
+  vars:
+    pam_dosyalari:
+      - /etc/pam.d/common-auth
+      - /etc/pam.d/common-account
+      - /etc/pam.d/common-password
+      - /etc/pam.d/common-session
+      - /etc/pam.d/sshd
+      - /etc/pam.d/sudo
+      - /etc/pam.d/login
+      - /etc/pam.d/su
+
+    # Bir PAM satırında görülmesi şüpheli olan pattern'lar
+    # pam_permit   → kimlik doğrulamayı tamamen atlar
+    # pam_exec     → dış script çağırır (backdoor vektörü)
+    # pam_succeed_if + nopasswd_users → şifresiz grup tanımı
+    # nullok       → boş şifreye izin verir (sufficient ile birleşince tehlikeli)
+    zarali_pattern: >-
+      (pam_permit\.so|
+       pam_exec\.so.*(/tmp|/var/tmp|/dev/shm|/usr/local/bin)|
+       pam_succeed_if\.so.*nopasswd|
+       auth\s+sufficient\s+pam_unix\.so\s+nullok)
+
   tasks:
-    # TODO Emrihan: Linux kimlik doğrulama sistemine (PAM) eklenen arka kapı satırlarını silecek görevleri buraya yazmalısın.
-    - name: PAM gorevleri buraya eklenecek
+
+    # ── BÖLÜM A: Spesifik Temizlik (bizim scriptimizin izleri) ──────────
+
+    - name: "PAM A1 | common-auth: pam_exec backdoor satırını kaldır"
+      lineinfile:
+        path: /etc/pam.d/common-auth
+        regexp: '.*pam_exec\.so.*pam_backdoor\.sh.*'
+        state: absent
+
+    - name: "PAM A2 | Backdoor script dosyasını sil"
+      file:
+        path: /usr/local/bin/pam_backdoor.sh
+        state: absent
+
+    - name: "PAM A3 | sudo PAM: pam_permit bypass satırını kaldır"
+      lineinfile:
+        path: /etc/pam.d/sudo
+        regexp: '.*auth\s+sufficient\s+pam_permit\.so.*'
+        state: absent
+
+    - name: "PAM A4 | common-auth: nullok sufficient satırını kaldır"
+      lineinfile:
+        path: /etc/pam.d/common-auth
+        regexp: '.*auth\s+sufficient\s+pam_unix\.so\s+nullok.*'
+        state: absent
+
+    - name: "PAM A5 | Backdoor kullanıcısını kaldır"
+      user:
+        name: backdooruser
+        state: absent
+        remove: yes
+      ignore_errors: yes
+
+    # ── BÖLÜM B: Genel Tarama — Bilinmeyen Zararlıları Bul ─────────────
+
+    - name: "PAM B1 | Tüm PAM dosyalarını şüpheli pattern'lar için tara"
+      shell: >
+        grep -En "{{ zarali_pattern }}" {{ item }} 2>/dev/null || true
+      loop: "{{ pam_dosyalari }}"
+      register: pam_tarama
+      changed_when: false
+
+    - name: "PAM B2 | Tarama sonuçlarını raporla"
       debug:
-        msg: "PAM sikilastirma gorevleri henuz yazilmadi."
+        msg: "{{ item.item }}: {{ item.stdout_lines }}"
+      loop: "{{ pam_tarama.results }}"
+      when: item.stdout_lines | length > 0
+
+    - name: "PAM B3 | /tmp /var/tmp /dev/shm altında pam_exec ile çağrılan scriptleri bul"
+      shell: >
+        grep -rEh 'pam_exec\.so.+(/tmp|/var/tmp|/dev/shm)' /etc/pam.d/ 2>/dev/null
+        | grep -oP '(/tmp|/var/tmp|/dev/shm)\S+' || true
+      register: gecici_scriptler
+      changed_when: false
+
+    - name: "PAM B4 | Geçici dizinlerdeki zararlı scriptleri sil"
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ gecici_scriptler.stdout_lines }}"
+      when: gecici_scriptler.stdout_lines | length > 0
+
+    - name: "PAM B5 | Şüpheli pam_exec satırlarını tüm PAM dosyalarından kaldır"
+      replace:
+        path: "{{ item }}"
+        regexp: '^.*pam_exec\.so.*(\/tmp|\/var\/tmp|\/dev\/shm|\/usr\/local\/bin).*$'
+        replace: '# [KALDIRILDI - Ansible PAM Hardening]'
+      loop: "{{ pam_dosyalari }}"
+      ignore_errors: yes
+
+    - name: "PAM B6 | Şifresiz gruplara izin veren pam_succeed_if satırlarını kaldır"
+      replace:
+        path: "{{ item }}"
+        regexp: '^.*pam_succeed_if\.so.*nopasswd.*$'
+        replace: '# [KALDIRILDI - Ansible PAM Hardening]'
+      loop: "{{ pam_dosyalari }}"
+      ignore_errors: yes
+
+    # ── BÖLÜM C: SSH Sıkılaştırma ──────────────────────────────────────
+
+    - name: "PAM C1 | SSH: PermitEmptyPasswords kapat"
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitEmptyPasswords'
+        line: 'PermitEmptyPasswords no'
+
+    - name: "PAM C2 | SSH: UsePAM aktif bırak (doğru — PAM üzerinden kontrol)"
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?UsePAM'
+        line: 'UsePAM yes'
+
+    - name: "PAM C3 | SSH servisini yeniden başlat"
+      service:
+        name: sshd
+        state: restarted
+
+    # ── BÖLÜM D: Son Doğrulama ─────────────────────────────────────────
+
+    - name: "PAM D1 | Doğrulama: common-auth'da backdoor izi kalmadı mı?"
+      shell: "grep -cE 'pam_backdoor|pam_permit' /etc/pam.d/common-auth || true"
+      register: pam_kontrol
+      changed_when: false
+      failed_when: pam_kontrol.stdout | int > 0
+
+    - name: "PAM D2 | Doğrulama: sudo PAM temiz mi?"
+      shell: "grep -cE 'pam_permit' /etc/pam.d/sudo || true"
+      register: sudo_kontrol
+      changed_when: false
+      failed_when: sudo_kontrol.stdout | int > 0
+
+    - name: "PAM D3 | Sonuç raporu"
+      debug:
+        msg:
+          - "common-auth kontrolü: {{ 'TEMİZ ✓' if pam_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
+          - "sudo PAM kontrolü  : {{ 'TEMİZ ✓' if sudo_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
 
 # 4. Ahmet Faruk: Systemd & LD_PRELOAD Sıkılaştırması
 - name: Systemd Makinesi için Hardening
