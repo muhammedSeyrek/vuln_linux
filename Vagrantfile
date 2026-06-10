@@ -41,7 +41,7 @@ Vagrant.configure("2") do |config|
     pam.vm.provision "shell", path: "deploy_pam_vuln.sh"
   end
 
-  # 4. Ahmet Faruk: Systemd & LD_PRELOAD
+  # 4. Ahmet Faruk: Systemd
   config.vm.define "vuln-systemd" do |sys|
     sys.vm.network "private_network", ip: "192.168.56.14"
     sys.vm.hostname = "target-systemd"
@@ -49,10 +49,20 @@ Vagrant.configure("2") do |config|
       v.vmx["displayname"] = "Vuln4_Systemd"
       v.vmx["memsize"] = "1024"
     end
-    # Yeni değişiklik, otomatize etmek için.
-    sys.vm.provision "shell", path: "deploy_ld_preload_vuln.sh"
     sys.vm.provision "shell", path: "deploy_systemd_vuln.sh"
   end
+
+  # 5.Ahmet Faruk: LD_PRELOAD
+  config.vm.define "vuln-ld" do |ld|
+    ld.vm.network "private_network", ip: "192.168.56.15"
+    ld.vm.hostname = "target-ld"
+    ld.vm.provider "vmware_desktop" do |v|
+      v.vmx["displayname"] = "Vuln5_ld"
+      v.vmx["memsize"] = "1024"
+    end
+    ld.vm.provision "shell", path: "deploy_ld_preload_vuln.sh"
+  end
+
 
   # ==========================================
   # FAZ 3: MERKEZİ İZLEME VE ALARM MAKİNESİ
