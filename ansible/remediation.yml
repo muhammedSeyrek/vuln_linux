@@ -42,12 +42,114 @@
       debug:
         msg: "PAM sikilastirma gorevleri henuz yazilmadi."
 
-# 4. Ahmet Faruk: Systemd & LD_PRELOAD Sıkılaştırması (BEKLENİYOR)
-- name: Target-Systemd Makinesi için Hardening
-  hosts: target-systemd
+# 4. Ahmet Faruk: Systemd & LD_PRELOAD Sıkılaştırması
+- name: Systemd Makinesi için Hardening
+  hosts: vuln-systemd
   become: yes
   tasks:
-    # TODO Ahmet: Zararlı systemd servisini durdurup sistemden tamamen silecek görevleri buraya yazmalısın.
-    - name: Systemd gorevleri buraya eklenecek
-      debug:
-        msg: "Systemd sikilastirma gorevleri henuz yazilmadi."
+
+    # 1. SYSTEMD ZAFİYETİ TESPİTİ VE TEMİZLİĞİ
+    - name: Zafiyetli (World-Writable ExecStart) systemd servislerini dinamik olarak tespit et
+      shell: |
+        for svc in /etc/systemd/system/*.service; do
+          if [ -f "$svc" ]; then
+            # ExecStart ile tetiklenen ana betiğin yolunu al
+            exec_bin=$(grep -E '^\s*ExecStart=' "$svc" | cut -d'=' -f2- | awk '{print $1}')
+            
+            # Betik mevcutsa ve herkes tarafından yazılabilir durumdaysa (777 vb.)
+            if [ -n "$exec_bin" ] && [ -e "$exec_bin" ]; then
+              if [ -n "$(find "$exec_bin" -perm -0002 2>/dev/null)" ]; then
+                # Servis adını ve zafiyetli scriptin yolunu output olarak ver
+                echo "${svc##*/}|$exec_bin"
+              fi
+            fi
+          fi
+        done
+      register: detected_services
+      changed_when: false
+
+    - name: Zafiyetli systemd servislerini durdur ve devre dışı bırak
+      systemd:
+        name: "{{ item.split('|')[0] }}"
+        state: stopped
+        enabled: no
+      with_items: "{{ detected_services.stdout_lines }}"
+      when: detected_services.stdout_lines | length > 0
+
+    - name: Zafiyetli systemd timer'larını durdur (varsa)
+      systemd:
+        name: "{{ item.split('|')[0] | replace('.service', '.timer') }}"
+        state: stopped
+        enabled: no
+      with_items: "{{ detected_services.stdout_lines }}"
+      when: detected_services.stdout_lines | length > 0
+      failed_when: false
+
+    - name: Zafiyetli servisin tetiklediği harici scripti sil
+      file:
+        path: "{{ item.split('|')[1] }}"
+        state: absent
+      with_items: "{{ detected_services.stdout_lines }}"
+      when: detected_services.stdout_lines | length > 0
+
+    - name: Zafiyetli systemd service dosyalarını sil
+      file:
+        path: "/etc/systemd/system/{{ item.split('|')[0] }}"
+        state: absent
+      with_items: "{{ detected_services.stdout_lines }}"
+      when: detected_services.stdout_lines | length > 0
+      notify: Daemon Reload
+
+    - name: Zafiyetli systemd timer dosyalarını sil
+      file:
+        path: "/etc/systemd/system/{{ item.split('|')[0] | replace('.service', '.timer') }}"
+        state: absent
+      with_items: "{{ detected_services.stdout_lines }}"
+      when: detected_services.stdout_lines | length > 0
+      notify: Daemon Reload
+
+    # 2. LD_PRELOAD VE TEHLİKELİ SUDOERS TEMİZLİĞİ
+    - name: Sudoers (.d) dizinindeki tüm konfigürasyon dosyalarını bul
+      find:
+        paths: /etc/sudoers.d
+        file_type: file
+      register: sudoers_files
+
+    - name: Sudoers içerisindeki LD_PRELOAD (env_keep) zafiyetlerini pasifize et
+      replace:
+        path: "{{ item.path }}"
+        regexp: '^(.*env_keep\s*\+=\s*LD_PRELOAD.*)$'
+        replace: '# \1 # ANSIBLE: GUVENLIK SEBEBIYLE KAPATILDI'
+      with_items:
+        - { path: '/etc/sudoers' }
+        - "{{ sudoers_files.files }}"
+      validate: /usr/sbin/visudo -cf %s
+
+    - name: Sudoers içindeki uptime komut yetkilerini kapat
+      replace:
+        path: "{{ item.path }}"
+        # İçinde /usr/bin/uptime geçen tüm aktif satırları yakalar
+        regexp: '^([^#]*\/usr\/bin\/uptime.*)$'
+        replace: '# \1 # ANSIBLE: GUVENLIK SEBEBIYLE KAPATILDI'
+      with_items:
+        - { path: '/etc/sudoers' }
+        - "{{ sudoers_files.files }}"
+      validate: /usr/sbin/visudo -cf %s
+
+    # 3. KULLANICI VE EV DİZİNİ TEMİZLİĞİ
+    - name: Zafiyet testleri için açılan kullanıcıları ve ev dizinlerini tamamen sil
+      user:
+        name: "{{ item }}"
+        state: absent
+        remove: yes  # Kullanıcının ev dizinini (/home/...) ve tüm dosyalarını siler
+        force: yes   # Kullanıcı arka planda açık bir session bıraktıysa bile zorla siler
+      loop:
+        - systemd_user
+        - ld_user
+      failed_when: false # Kullanıcılar zaten silinmişse hatayı önler
+
+  # HANDLERS
+  handlers:
+    - name: Daemon Reload
+      systemd:
+        daemon_reload: yes
