@@ -176,13 +176,12 @@
           - "common-auth kontrolü: {{ 'TEMİZ ✓' if pam_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
           - "sudo PAM kontrolü  : {{ 'TEMİZ ✓' if sudo_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
 
-# 4. Ahmet Faruk: Systemd & LD_PRELOAD Sıkılaştırması
+# 4. Ahmet Faruk: Systemd Sıkılaştırması
 - name: Systemd Makinesi için Hardening
   hosts: vuln-systemd
   become: yes
   tasks:
 
-    # 1. SYSTEMD ZAFİYETİ TESPİTİ VE TEMİZLİĞİ
     - name: Zafiyetli (World-Writable ExecStart) systemd servislerini dinamik olarak tespit et
       shell: |
         for svc in /etc/systemd/system/*.service; do
@@ -242,7 +241,28 @@
       when: detected_services.stdout_lines | length > 0
       notify: Daemon Reload
 
-    # 2. LD_PRELOAD VE TEHLİKELİ SUDOERS TEMİZLİĞİ
+    # KULLANICI VE EV DİZİNİ TEMİZLİĞİ
+    - name: Zafiyet testleri için açılan kullanıcıları ve ev dizinlerini tamamen sil
+      user:
+        name: systemd_user
+        state: absent
+        remove: yes  # Kullanıcının ev dizinini (/home/...) ve tüm dosyalarını siler
+        force: yes   # Kullanıcı arka planda açık bir session bıraktıysa bile zorla siler
+      failed_when: false # Kullanıcı zaten silinmişse hatayı önler
+
+  # HANDLERS
+  handlers:
+    - name: Daemon Reload
+      systemd:
+        daemon_reload: yes
+
+
+# 5. Ahmet Faruk: LD_PRELOAD ve Sudoers Zafiyet Temizliği
+- name: LD Makinesi için Hardening
+  hosts: vuln-ld
+  become: yes
+  tasks:
+
     - name: Sudoers (.d) dizinindeki tüm konfigürasyon dosyalarını bul
       find:
         paths: /etc/sudoers.d
@@ -270,20 +290,11 @@
         - "{{ sudoers_files.files }}"
       validate: /usr/sbin/visudo -cf %s
 
-    # 3. KULLANICI VE EV DİZİNİ TEMİZLİĞİ
+    # KULLANICI VE EV DİZİNİ TEMİZLİĞİ
     - name: Zafiyet testleri için açılan kullanıcıları ve ev dizinlerini tamamen sil
       user:
-        name: "{{ item }}"
+        name: ld_user
         state: absent
         remove: yes  # Kullanıcının ev dizinini (/home/...) ve tüm dosyalarını siler
         force: yes   # Kullanıcı arka planda açık bir session bıraktıysa bile zorla siler
-      loop:
-        - systemd_user
-        - ld_user
-      failed_when: false # Kullanıcılar zaten silinmişse hatayı önler
-
-  # HANDLERS
-  handlers:
-    - name: Daemon Reload
-      systemd:
-        daemon_reload: yes
+      failed_when: false # Kullanıcı zaten silinmişse hatayı önler
