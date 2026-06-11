@@ -22,15 +22,26 @@
         state: absent
         remove: yes
 
-# 2. Bedirhan: NFS Zafiyeti Sıkılaştırması (BEKLENİYOR)
+# 2. Bedirhan İhtiyar: NFS Misconfiguration & SUID Temizliği
 - name: Target-NFS Makinesi için Hardening
   hosts: target-nfs
   become: yes
   tasks:
-    # TODO Bedirhan
-    - name: NFS gorevleri buraya eklenecek
-      debug:
-        msg: "NFS sikilastirma gorevleri henuz yazilmadi."
+    - name: NFS zafiyetini kapat (no_root_squash bayrağını root_squash olarak değiştir)
+      replace:
+        path: /etc/exports
+        regexp: 'no_root_squash'
+        replace: 'root_squash'
+
+    - name: NFS servisini yeniden başlatarak güvenli ayarları aktif et
+      systemd:
+        name: nfs-kernel-server
+        state: restarted
+
+    - name: SUID zafiyetini kapat (find komutunun yetkilerini varsayılana döndür)
+      file:
+        path: /usr/bin/find
+        mode: '0755'
 
 # 3. Emrihan: PAM Zafiyeti Sıkılaştırması
 - name: Target-PAM Makinesi için Hardening
