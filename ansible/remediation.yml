@@ -275,10 +275,10 @@
         path: "{{ item.path }}"
         regexp: '^(.*env_keep\s*\+=\s*LD_PRELOAD.*)$'
         replace: '# \1 # ANSIBLE: GUVENLIK SEBEBIYLE KAPATILDI'
+        validate: /usr/sbin/visudo -cf %s
       with_items:
         - { path: '/etc/sudoers' }
         - "{{ sudoers_files.files }}"
-      validate: /usr/sbin/visudo -cf %s
 
     - name: Sudoers içindeki uptime komut yetkilerini kapat
       replace:
@@ -286,10 +286,11 @@
         # İçinde /usr/bin/uptime geçen tüm aktif satırları yakalar
         regexp: '^([^#]*\/usr\/bin\/uptime.*)$'
         replace: '# \1 # ANSIBLE: GUVENLIK SEBEBIYLE KAPATILDI'
+        validate: /usr/sbin/visudo -cf %s
       with_items:
         - { path: '/etc/sudoers' }
         - "{{ sudoers_files.files }}"
-      validate: /usr/sbin/visudo -cf %s
+      
 
     # KULLANICI VE EV DİZİNİ TEMİZLİĞİ
     - name: Zafiyet testleri için açılan kullanıcıları ve ev dizinlerini tamamen sil

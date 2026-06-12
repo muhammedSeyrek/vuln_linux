@@ -1,0 +1,17 @@
+<group name="linux, sudo, privilege_escalation,">
+
+  <rule id="100403" level="12">
+    <if_sid>5402</if_sid> <match>LD_PRELOAD</match>
+    <description>Kritik: Sudoers (env_keep) üzerinden LD_PRELOAD kullanılarak yetki yükseltme girişimi tespit edildi!</description>
+    <mitre>
+      <id>T1574.006</id> </mitre>
+  </rule>
+
+  <rule id="100404" level="8">
+    <if_sid>5902</if_sid> <match>ld_user</match>
+    <description>Uyarı: Sistemde zafiyet testi amacıyla kullanılan 'ld_user' kullanıcısı oluşturuldu!</description>
+    <mitre>
+      <id>T1136.001</id> </mitre>
+  </rule>
+
+</group>
