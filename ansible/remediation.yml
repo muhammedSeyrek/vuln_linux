@@ -63,11 +63,7 @@
     # pam_exec     → dış script çağırır (backdoor vektörü)
     # pam_succeed_if + nopasswd_users → şifresiz grup tanımı
     # nullok       → boş şifreye izin verir (sufficient ile birleşince tehlikeli)
-    zarali_pattern: >-
-      (pam_permit\.so|
-       pam_exec\.so.*(/tmp|/var/tmp|/dev/shm|/usr/local/bin)|
-       pam_succeed_if\.so.*nopasswd|
-       auth\s+sufficient\s+pam_unix\.so\s+nullok)
+    zarali_pattern: '(pam_permit\.so|pam_exec\.so.*(/tmp|/var/tmp|/dev/shm|/usr/local/bin)|pam_succeed_if\.so.*nopasswd|auth\s+sufficient\s+pam_unix\.so\s+nullok)'
 
   tasks:
 
@@ -120,8 +116,7 @@
 
     - name: "PAM B3 | /tmp /var/tmp /dev/shm altında pam_exec ile çağrılan scriptleri bul"
       shell: >
-        grep -rEh 'pam_exec\.so.+(/tmp|/var/tmp|/dev/shm)' /etc/pam.d/ 2>/dev/null
-        | grep -oP '(/tmp|/var/tmp|/dev/shm)\S+' || true
+        grep -rEh 'pam_exec\.so.+(/tmp|/var/tmp|/dev/shm)' /etc/pam.d/ 2>/dev/null | grep -oP '(/tmp|/var/tmp|/dev/shm)\S+' || true
       register: gecici_scriptler
       changed_when: false
 
@@ -132,19 +127,11 @@
       loop: "{{ gecici_scriptler.stdout_lines }}"
       when: gecici_scriptler.stdout_lines | length > 0
 
-    - name: "PAM B5 | Şüpheli pam_exec satırlarını tüm PAM dosyalarından kaldır"
-      replace:
+    - name: "PAM B5 & B6 | Şüpheli satırları tüm PAM dosyalarından tamamen sil (Güvenli Yöntem)"
+      lineinfile:
         path: "{{ item }}"
-        regexp: '^.*pam_exec\.so.*(\/tmp|\/var\/tmp|\/dev\/shm|\/usr\/local\/bin).*$'
-        replace: '# [KALDIRILDI - Ansible PAM Hardening]'
-      loop: "{{ pam_dosyalari }}"
-      ignore_errors: yes
-
-    - name: "PAM B6 | Şifresiz gruplara izin veren pam_succeed_if satırlarını kaldır"
-      replace:
-        path: "{{ item }}"
-        regexp: '^.*pam_succeed_if\.so.*nopasswd.*$'
-        replace: '# [KALDIRILDI - Ansible PAM Hardening]'
+        regexp: '^(.*pam_exec\.so.*(\/tmp|\/var\/tmp|\/dev\/shm|\/usr\/local\/bin).*|.*pam_succeed_if\.so.*nopasswd.*)$'
+        state: absent
       loop: "{{ pam_dosyalari }}"
       ignore_errors: yes
 
@@ -155,17 +142,14 @@
         path: /etc/ssh/sshd_config
         regexp: '^#?PermitEmptyPasswords'
         line: 'PermitEmptyPasswords no'
+      notify: Restart SSH
 
     - name: "PAM C2 | SSH: UsePAM aktif bırak (doğru — PAM üzerinden kontrol)"
       lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^#?UsePAM'
         line: 'UsePAM yes'
-
-    - name: "PAM C3 | SSH servisini yeniden başlat"
-      service:
-        name: sshd
-        state: restarted
+      notify: Restart SSH
 
     # ── BÖLÜM D: Son Doğrulama ─────────────────────────────────────────
 
@@ -186,6 +170,12 @@
         msg:
           - "common-auth kontrolü: {{ 'TEMİZ ✓' if pam_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
           - "sudo PAM kontrolü  : {{ 'TEMİZ ✓' if sudo_kontrol.stdout | int == 0 else 'SORUN VAR ✗' }}"
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted
 
 # 4. Ahmet Faruk: Systemd Sıkılaştırması
 - name: Systemd Makinesi için Hardening

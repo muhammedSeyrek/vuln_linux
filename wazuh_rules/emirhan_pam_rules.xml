@@ -1,0 +1,38 @@
+<group name="linux, pam_hardening, privilege_escalation, backdoor,">
+
+  <rule id="100301" level="12">
+    <if_sid>550</if_sid>
+    <regex>/etc/pam.d/common-auth|/etc/pam.d/sudo</regex>
+    <description>Kritik: PAM kimlik dogrulama dosyasi degistirildi! Olasi yetki yukseltme veya backdoor girisimi.</description>
+    <mitre>
+      <id>T1556.003</id> 
+    </mitre>
+  </rule>
+
+  <rule id="100302" level="12">
+    <if_sid>550</if_sid>
+    <match>/usr/local/bin/pam_backdoor.sh</match>
+    <description>SOC ALARMI: Sistemde bilinen bir PAM backdoor scripti olusturuldu veya degistirildi!</description>
+    <mitre>
+      <id>T1059.004</id> 
+    </mitre>
+  </rule>
+
+  <rule id="100303" level="10">
+    <if_sid>5902</if_sid>
+    <match>backdooruser</match>
+    <description>Uyari: Sistemde zafiyet testi icin kullanilan 'backdooruser' kullanicisi tekrar acildi!</description>
+    <mitre>
+      <id>T1136.001</id> 
+    </mitre>
+  </rule>
+
+  <rule id="100304" level="5">
+    <if_sid>550</if_sid>
+    <regex>/etc/passwd|/etc/shadow</regex>
+    <description>Bilgi: Sistemde parola veritabani (/etc/passwd veya /etc/shadow) degistirildi. Yeni bir kullanici eklenmis veya parola degistirilmis olabilir.</description>
+    <mitre>
+      <id>T1087.001</id> </mitre>
+  </rule>
+
+</group>
