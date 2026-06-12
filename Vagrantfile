@@ -77,6 +77,8 @@ Vagrant.configure("2") do |config|
       v.vmx["memsize"] = "4096" # Wazuh log işleyeceği için daha fazla RAM gerektirir
       v.vmx["numvcpus"] = "2"
     end
+    # Wazuh Otomatik Kurulum ve Kural Entegrasyonu
+    w.vm.provision "shell", path: "deploy_wazuh_manager.sh"
   end
 
 end
