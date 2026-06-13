@@ -1,0 +1,63 @@
+---
+- name: Hedef Makinelere Wazuh Agent Kurulumu
+  hosts: target-caps, target-nfs, target-pam, target-systemd, target-ld
+  become: yes
+  tasks:
+    - name: "1. Wazuh deposunu ve GPG anahtarini ekle"
+      shell: |
+        curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import
+        chmod 644 /usr/share/keyrings/wazuh.gpg
+        echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" > /etc/apt/sources.list.d/wazuh.list
+      args:
+        creates: /etc/apt/sources.list.d/wazuh.list
+
+    - name: "2. Wazuh Agent 4.7.5 kur (surum Manager ile ayni olmali)"
+      shell: |
+        apt-get update
+        WAZUH_MANAGER="192.168.56.20" apt-get install wazuh-agent=4.7.5-1 -y --allow-downgrades
+      args:
+        creates: /var/ossec/bin/wazuh-agentd
+
+    - name: "3. Ajan ossec.conf yaz (auth.log + syscheck)"
+      copy:
+        dest: /var/ossec/etc/ossec.conf
+        owner: root
+        group: wazuh
+        mode: '0640'
+        content: |
+          <ossec_config>
+            <client>
+              <server>
+                <address>192.168.56.20</address>
+                <port>1514</port>
+                <protocol>tcp</protocol>
+              </server>
+            </client>
+
+            <localfile>
+              <log_format>syslog</log_format>
+              <location>/var/log/auth.log</location>
+            </localfile>
+
+            <localfile>
+              <log_format>syslog</log_format>
+              <location>/var/log/syslog</location>
+            </localfile>
+
+            <syscheck>
+              <disabled>no</disabled>
+              <directories check_all="yes" realtime="yes">/etc/pam.d,/etc/exports,/usr/local/bin,/etc/systemd/system,/etc/sudoers.d</directories>
+              <frequency>300</frequency>
+            </syscheck>
+          </ossec_config>
+
+    - name: "4. Ajani Manager'a kaydet"
+      shell: /var/ossec/bin/agent-auth -m 192.168.56.20
+      args:
+        creates: /var/ossec/etc/client.keys
+
+    - name: "5. Ajan servisini baslat ve aktif et"
+      systemd:
+        name: wazuh-agent
+        state: restarted
+        enabled: yes

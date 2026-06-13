@@ -1,17 +1,14 @@
-<group name="linux, systemd, privilege_escalation,">
-
-  <rule id="100401" level="12">
-    <if_sid>5402</if_sid> <match>vuln-backup.service|/opt/system_backup.sh</match>
-    <description>Kritik: Zafiyetli Systemd Servisi (World-Writable ExecStart) veya Altındaki Betik Tetiklendi/Manipüle Edildi!</description>
-    <mitre>
-      <id>T1543.003</id> </mitre>
+<group name="linux,systemd,privilege_escalation,">
+  <rule id="110401" level="12">
+    <if_sid>5400</if_sid>
+    <match>vuln-backup.service|system_backup.sh</match>
+    <description>Kritik: Zafiyetli systemd servisi/betigi tetiklendi veya manipule edildi!</description>
+    <mitre><id>T1543.003</id></mitre>
   </rule>
-
-  <rule id="100402" level="8">
-    <if_sid>5902</if_sid> <match>systemd_user</match>
-    <description>Uyarı: Sistemde zafiyet testi amacıyla kullanılan 'systemd_user' kullanıcısı oluşturuldu!</description>
-    <mitre>
-      <id>T1136.001</id> </mitre>
+  <rule id="110402" level="8">
+    <if_sid>5902</if_sid>
+    <match>systemd_user</match>
+    <description>Uyari: 'systemd_user' kullanicisi olusturuldu!</description>
+    <mitre><id>T1136.001</id></mitre>
   </rule>
-
 </group>

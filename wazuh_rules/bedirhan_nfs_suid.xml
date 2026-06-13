@@ -1,22 +1,14 @@
 <group name="custom_nfs_suid_hardening,">
-
-  <rule id="100201" level="10">
-    <if_sid>550</if_sid> 
-    <match>/etc/exports</match>
-    <description>Kritik: NFS yapılandırma dosyası (/etc/exports) değiştirildi! no_root_squash kontrol edilmeli.</description>
-    <mitre>
-      <id>T1068</id>
-    </mitre>
+  <rule id="110201" level="10">
+    <if_sid>550</if_sid>
+    <field name="file">/etc/exports</field>
+    <description>Kritik: NFS yapilandirma dosyasi (/etc/exports) degistirildi!</description>
+    <mitre><id>T1068</id></mitre>
   </rule>
-
-  <rule id="100202" level="12">
-    <if_sid>530</if_sid> 
+  <rule id="110202" level="12">
+    <if_sid>5400</if_sid>
     <match>find</match>
-    <regex>-exec /bin/sh|-exec /bin/bash</regex>
-    <description>Tehdit Uyarısı: 'find' komutu üzerinden komut satırı tetiklendi (Olası SUID İstismarı!)</description>
-    <mitre>
-      <id>T1548.001</id>
-    </mitre>
+    <description>Tehdit: 'find' komutu sudo ile calistirildi (Olasi SUID istismari!)</description>
+    <mitre><id>T1548.001</id></mitre>
   </rule>
-
 </group>

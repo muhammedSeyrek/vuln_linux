@@ -1,19 +1,10 @@
-<group name="linux, capabilities, privilege_escalation,">
-  
-  <rule id="100101" level="12">
-    <if_sid>5402</if_sid> 
-    <match>setcap cap_setuid</match>
-    <description>Kritik: Linux Capabilities (setcap) kullanilarak yetki yukseltme girisimi tespit edildi!</description>
+<group name="local,syslog,sudo,">
+  <rule id="110101" level="12">
+    <if_sid>5400</if_sid>
+    <match>setcap</match>
+    <description>Kritik: setcap ile yetki yukseltme girisimi tespit edildi!</description>
     <mitre>
-      <id>T1548.001</id> 
+      <id>T1548.001</id>
     </mitre>
   </rule>
-
-  <rule id="100102" level="8">
-    <if_sid>5902</if_sid> <match>team2</match>
-    <description>Uyarı: Sistemde zafiyet testi/arka kapı amacıyla kullanilan 'team2' kullanicisi acildi!</description>
-    <mitre>
-      <id>T1136.001</id> </mitre>
-  </rule>
-
 </group>
