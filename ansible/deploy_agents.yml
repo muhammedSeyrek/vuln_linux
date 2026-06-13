@@ -1,5 +1,5 @@
 ---
-- name: Hedef Makinelere Wazuh Agent Kurulumu
+- name: Hedef Makinelere Wazuh Agent Kurulumu (4.7.5 sabit, idempotent)
   hosts: target-caps, target-nfs, target-pam, target-systemd, target-ld
   become: yes
   tasks:
@@ -11,14 +11,26 @@
       args:
         creates: /etc/apt/sources.list.d/wazuh.list
 
-    - name: "2. Wazuh Agent 4.7.5 kur (surum Manager ile ayni olmali)"
-      shell: |
-        apt-get update
-        WAZUH_MANAGER="192.168.56.20" apt-get install wazuh-agent=4.7.5-1 -y --allow-downgrades
-      args:
-        creates: /var/ossec/bin/wazuh-agentd
+    - name: "2. Wazuh Agent 4.7.5 kur (noninteractive + retry, dpkg takilmasi ve lock cozulur)"
+      apt:
+        name: wazuh-agent=4.7.5-1
+        allow_downgrade: yes
+        update_cache: yes
+        dpkg_options: 'force-confnew'
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      register: apt_result
+      retries: 5
+      delay: 15
+      until: apt_result is succeeded
 
-    - name: "3. Ajan ossec.conf yaz (auth.log + syscheck)"
+    - name: "3. Ajani durdur (config yazmadan once)"
+      systemd:
+        name: wazuh-agent
+        state: stopped
+      ignore_errors: yes
+
+    - name: "4. Temiz ossec.conf yaz (MANAGER_IP placeholder sorununu cozer + syscheck)"
       copy:
         dest: /var/ossec/etc/ossec.conf
         owner: root
@@ -51,12 +63,19 @@
             </syscheck>
           </ossec_config>
 
-    - name: "4. Ajani Manager'a kaydet"
-      shell: /var/ossec/bin/agent-auth -m 192.168.56.20
-      args:
-        creates: /var/ossec/etc/client.keys
+    - name: "5. Eski key'i temizle"
+      file:
+        path: /var/ossec/etc/client.keys
+        state: absent
 
-    - name: "5. Ajan servisini baslat ve aktif et"
+    - name: "6. Ajani Manager'a kaydet (force blogu sayesinde duplicate olmaz, retry'li)"
+      shell: /var/ossec/bin/agent-auth -m 192.168.56.20
+      register: auth_result
+      retries: 3
+      delay: 5
+      until: "'Valid key received' in auth_result.stderr"
+
+    - name: "7. Ajan servisini baslat ve aktif et"
       systemd:
         name: wazuh-agent
         state: restarted
